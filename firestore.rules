@@ -1,0 +1,83 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function belongsToAcademia(academiaId) {
+      return userExists() && userDoc().data.academiaId == academiaId;
+    }
+
+    function role() {
+      return userExists() ? userDoc().data.role : null;
+    }
+
+    function isAdmin(academiaId) {
+      return belongsToAcademia(academiaId) && role() == 'admin';
+    }
+
+    function isStaff(academiaId) {
+      return belongsToAcademia(academiaId) && (role() == 'admin' || role() == 'professor' || role() == 'recepcionista');
+    }
+
+    match /users/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow update: if isSignedIn() && request.auth.uid == uid && request.resource.data.academiaId == resource.data.academiaId;
+      allow delete: if false;
+    }
+
+    match /academias/{academiaId} {
+      allow read: if belongsToAcademia(academiaId);
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isAdmin(academiaId);
+      allow delete: if false;
+
+      match /students/{studentId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isStaff(academiaId);
+      }
+
+      match /teachers/{teacherId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isAdmin(academiaId);
+      }
+
+      match /payments/{paymentId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isStaff(academiaId);
+      }
+
+      match /attendance/{attendanceId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isStaff(academiaId);
+      }
+
+      match /classes/{classId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isAdmin(academiaId);
+      }
+
+      match /finance/{entryId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isAdmin(academiaId);
+      }
+
+      match /notices/{noticeId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isAdmin(academiaId);
+      }
+    }
+  }
+}
