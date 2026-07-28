@@ -162,3 +162,11 @@ export interface Notice {
   mensagem: string;
   createdAt: number;
 }
+
+export interface Invite {
+  id: string; // lowercased e-mail, also used as the Firestore document id
+  academiaId: string;
+  email: string;
+  role: Role;
+  createdAt: number;
+}

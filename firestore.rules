@@ -31,9 +31,29 @@ service cloud.firestore {
       return belongsToAcademia(academiaId) && (role() == 'admin' || role() == 'professor' || role() == 'recepcionista');
     }
 
+    function inviteRef(academiaId, email) {
+      return /databases/$(database)/documents/academias/$(academiaId)/invites/$(email);
+    }
+
+    function claimsNewAcademiaAsAdmin() {
+      return request.resource.data.role == 'admin'
+        && get(/databases/$(database)/documents/academias/$(request.resource.data.academiaId)).data.ownerUid == request.auth.uid;
+    }
+
+    function claimsValidInvite() {
+      let ref = inviteRef(request.resource.data.academiaId, request.auth.token.email.lower());
+      return exists(ref)
+        && get(ref).data.email == request.auth.token.email.lower()
+        && get(ref).data.role == request.resource.data.role;
+    }
+
     match /users/{uid} {
       allow read: if isSignedIn() && request.auth.uid == uid;
-      allow create: if isSignedIn() && request.auth.uid == uid;
+      // A user can only create their own profile, and only by either founding a brand
+      // new academia (as its admin) or redeeming a staff invite created by that
+      // academia's admin — never by self-assigning an arbitrary academiaId/role.
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && (claimsNewAcademiaAsAdmin() || claimsValidInvite());
       allow update: if isSignedIn() && request.auth.uid == uid && request.resource.data.academiaId == resource.data.academiaId;
       allow delete: if false;
     }
@@ -43,6 +63,13 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
       allow update: if isAdmin(academiaId);
       allow delete: if false;
+
+      match /invites/{email} {
+        allow get: if isAdmin(academiaId) || (isSignedIn() && request.auth.token.email.lower() == resource.data.email);
+        allow list: if isAdmin(academiaId);
+        allow create, update: if isAdmin(academiaId);
+        allow delete: if isAdmin(academiaId) || (isSignedIn() && request.auth.token.email.lower() == resource.data.email);
+      }
 
       match /students/{studentId} {
         allow read: if isStaff(academiaId);

@@ -4,16 +4,19 @@ import { router } from 'expo-router';
 import { useTheme } from '@/theme/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAcademia } from '@/contexts/AcademiaContext';
-import { Avatar, Button, Card, Input, PhotoPicker, Screen, ScreenHeader } from '@/components';
+import { Avatar, Badge, Button, Card, Input, PhotoPicker, Screen, ScreenHeader, SelectField } from '@/components';
 import { updateAcademia } from '@/services/academia';
 import { uploadImageAsync } from '@/services/uploadImage';
 import { noticesService } from '@/services/notices';
+import { invitesService } from '@/services/invites';
 import { signOutUser } from '@/services/auth';
-import { Notice } from '@/types';
+import { Invite, Notice, Role } from '@/types';
+
+const CONVIDAVEIS: Role[] = ['professor', 'recepcionista'];
 
 export default function ConfiguracoesScreen() {
   const { colors, mode, setMode } = useTheme();
-  const { profile, academiaId } = useAuth();
+  const { profile, academiaId, role } = useAuth();
   const { academia } = useAcademia();
 
   const [nome, setNome] = useState('');
@@ -32,6 +35,12 @@ export default function ConfiguracoesScreen() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [novoTitulo, setNovoTitulo] = useState('');
   const [novaMensagem, setNovaMensagem] = useState('');
+
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [conviteEmail, setConviteEmail] = useState('');
+  const [conviteRole, setConviteRole] = useState<Role>('professor');
+  const [convidando, setConvidando] = useState(false);
+  const [conviteError, setConviteError] = useState('');
 
   useEffect(() => {
     if (!academia) return;
@@ -54,6 +63,13 @@ export default function ConfiguracoesScreen() {
       .list()
       .then((list) => setNotices(list.sort((a, b) => b.createdAt - a.createdAt)));
   }, [academiaId]);
+
+  useEffect(() => {
+    if (!academiaId || role !== 'admin') return;
+    invitesService(academiaId)
+      .list()
+      .then((list) => setInvites(list.sort((a, b) => b.createdAt - a.createdAt)));
+  }, [academiaId, role]);
 
   const handlePickLogo = async (localUri: string) => {
     if (!academiaId) return;
@@ -104,6 +120,38 @@ export default function ConfiguracoesScreen() {
     setNotices((prev) => prev.filter((n) => n.id !== id));
   };
 
+  const handleInvite = async () => {
+    setConviteError('');
+    const email = conviteEmail.trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      setConviteError('Informe um e-mail válido.');
+      return;
+    }
+    if (!academiaId) return;
+    setConvidando(true);
+    try {
+      await invitesService(academiaId).upsert(email, {
+        academiaId,
+        email,
+        role: conviteRole,
+        createdAt: Date.now(),
+      });
+      setConviteEmail('');
+      const list = await invitesService(academiaId).list();
+      setInvites(list.sort((a, b) => b.createdAt - a.createdAt));
+    } catch {
+      setConviteError('Não foi possível criar o convite.');
+    } finally {
+      setConvidando(false);
+    }
+  };
+
+  const handleRemoveInvite = async (id: string) => {
+    if (!academiaId) return;
+    await invitesService(academiaId).remove(id);
+    setInvites((prev) => prev.filter((i) => i.id !== id));
+  };
+
   const handleLogout = () => {
     Alert.alert('Sair', 'Deseja sair da sua conta?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -151,6 +199,38 @@ export default function ConfiguracoesScreen() {
         <Button label="Escuro" size="sm" variant={mode === 'dark' ? 'primary' : 'outline'} onPress={() => setMode('dark')} />
         <Button label="Claro" size="sm" variant={mode === 'light' ? 'primary' : 'outline'} onPress={() => setMode('light')} />
       </View>
+
+      {role === 'admin' && (
+        <>
+          <Text style={[styles.section, { color: colors.textSecondary, marginTop: 24 }]}>EQUIPE</Text>
+          <Card style={{ marginBottom: 12 }}>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 4 }}>Código da academia</Text>
+            <Text selectable style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>
+              {academiaId}
+            </Text>
+            <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 6 }}>
+              Compartilhe este código com professores e recepcionistas para que eles se cadastrem em "Tenho um
+              convite" na tela de login.
+            </Text>
+          </Card>
+          <Card style={{ marginBottom: 16 }}>
+            <Input label="E-mail do convidado" value={conviteEmail} onChangeText={setConviteEmail} placeholder="professor@email.com" autoCapitalize="none" keyboardType="email-address" />
+            <SelectField label="Função" value={conviteRole} options={CONVIDAVEIS} onChange={setConviteRole} />
+            {!!conviteError && <Text style={{ color: colors.danger, marginBottom: 8 }}>{conviteError}</Text>}
+            <Button label="Convidar" onPress={handleInvite} loading={convidando} variant="outline" fullWidth />
+          </Card>
+          {invites.map((invite) => (
+            <Card key={invite.id} style={styles.noticeCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: colors.text, fontWeight: '700' }}>{invite.email}</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 12.5 }}>Convite pendente</Text>
+              </View>
+              <Badge label={invite.role} tone="primary" />
+              <Button label="Remover" size="sm" variant="danger" onPress={() => handleRemoveInvite(invite.id)} />
+            </Card>
+          ))}
+        </>
+      )}
 
       <Text style={[styles.section, { color: colors.textSecondary, marginTop: 24 }]}>AVISOS DA ACADEMIA</Text>
       <Card style={{ marginBottom: 16 }}>

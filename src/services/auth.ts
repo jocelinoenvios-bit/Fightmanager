@@ -1,13 +1,15 @@
 import {
   createUserWithEmailAndPassword,
+  deleteUser,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
 } from 'firebase/auth';
-import { addDoc, collection, doc, getDoc, setDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore';
 import { firebaseAuth, db } from './firebase';
 import { Academia, UserProfile } from '@/types';
+import { getInvite } from './invites';
 
 export async function signIn(email: string, senha: string) {
   const cred = await signInWithEmailAndPassword(firebaseAuth, email, senha);
@@ -49,6 +51,44 @@ export async function signUpAndCreateAcademia(params: {
   await setDoc(doc(db, 'users', cred.user.uid), profile);
 
   return { user: cred.user, academiaId: academiaRef.id };
+}
+
+export async function signUpWithInvite(params: {
+  academiaId: string;
+  nome: string;
+  email: string;
+  senha: string;
+}) {
+  const { academiaId, nome, senha } = params;
+  const email = params.email.trim().toLowerCase();
+  const cred = await createUserWithEmailAndPassword(firebaseAuth, email, senha);
+
+  try {
+    const invite = await getInvite(academiaId, email);
+    if (!invite) {
+      throw new Error('Convite não encontrado para este e-mail nesta academia.');
+    }
+
+    await updateProfile(cred.user, { displayName: nome });
+
+    const profile: UserProfile = {
+      uid: cred.user.uid,
+      academiaId,
+      nome,
+      email,
+      role: invite.role,
+      createdAt: Date.now(),
+    };
+    await setDoc(doc(db, 'users', cred.user.uid), profile);
+    await deleteDoc(doc(db, 'academias', academiaId, 'invites', email));
+
+    return { user: cred.user, academiaId };
+  } catch (error) {
+    // Roll back the auth account so a failed invite redemption doesn't leave an
+    // orphaned login with no academia/profile behind.
+    await deleteUser(cred.user).catch(() => {});
+    throw error;
+  }
 }
 
 export async function fetchUserProfile(uid: string): Promise<UserProfile | null> {

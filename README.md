@@ -118,16 +118,21 @@ npm run ios       # simulador/dispositivo iOS (necessita macOS)
 - Financeiro: receitas/despesas por categoria, lucro mensal/anual, fluxo de caixa, gráfico
 - Relatórios com exportação em Excel (CSV) e PDF (financeiro)
 - Configurações da academia (dados, redes sociais, Pix/dados bancários, horário) e avisos
+- Gestão de equipe: o administrador cadastra convites (e-mail + papel) em Configurações → Equipe e compartilha o "código da academia"; o convidado se cadastra escolhendo "Tenho um convite" na tela de cadastro, e recebe automaticamente o papel (professor/recepcionista) definido no convite
 - Tema claro/escuro com paleta preto/azul-escuro/vermelho/branco
+
+### Segurança de papéis (Firestore Rules)
+
+As regras (`firestore.rules`) impedem que um usuário se autodeclare `admin`/`professor`/`recepcionista` de uma academia arbitrária ao criar seu próprio perfil: a criação de `users/{uid}` só é aceita se (a) o usuário for o dono (`ownerUid`) da academia que está fundando como `admin`, ou (b) existir um convite válido, com o mesmo e-mail autenticado e o mesmo papel, na subcoleção `academias/{academiaId}/invites`. Isso foi validado com testes automatizados (`@firebase/rules-unit-testing`) cobrindo tentativas de escalonamento de privilégio direto via Firestore, sem passar pela UI do app.
 
 ## Próximos passos sugeridos (fora do escopo desta versão)
 
-- Tela de convite/gestão de usuários da equipe (professor/recepcionista) dentro do app — hoje os papéis já são respeitados pelas regras do Firestore, mas a criação desses usuários precisa ser feita manualmente (ex.: pelo Firebase Console) até que essa tela exista
 - Notificações push nativas (hoje os avisos aparecem no dashboard, mas não há push)
 - Área do aluno, pagamentos online, assinatura recorrente, ranking de atletas, estoque, gestão de filiais (mencionados como visão de futuro no briefing)
 
 ## Verificação
 
 - `npx tsc --noEmit` — checagem de tipos
-- Fluxo completo testado manualmente via Playwright + Firebase Emulators: cadastro de academia, login, alunos, professores, turmas, mensalidades (incluindo pagamento), presença (check-in manual), financeiro e relatórios
+- Fluxo completo testado manualmente via Playwright + Firebase Emulators: cadastro de academia, login, alunos, professores, turmas, mensalidades (incluindo pagamento), presença (check-in manual), financeiro, relatórios e convite/ingresso de um segundo usuário (professor) numa academia existente
+- Regras de segurança do Firestore testadas com `@firebase/rules-unit-testing` (tentativas de auto-atribuição de papel/academia, redenção de convite de terceiros, escalonamento de papel via convite)
 - Não foi possível validar em simulador iOS/Android real neste ambiente (sem macOS/emulador disponível); recomenda-se testar com `expo run:ios` / `expo run:android` antes de publicar nas lojas
