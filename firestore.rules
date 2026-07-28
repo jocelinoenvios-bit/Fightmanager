@@ -1,0 +1,110 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userExists() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function belongsToAcademia(academiaId) {
+      return userExists() && userDoc().data.academiaId == academiaId;
+    }
+
+    function role() {
+      return userExists() ? userDoc().data.role : null;
+    }
+
+    function isAdmin(academiaId) {
+      return belongsToAcademia(academiaId) && role() == 'admin';
+    }
+
+    function isStaff(academiaId) {
+      return belongsToAcademia(academiaId) && (role() == 'admin' || role() == 'professor' || role() == 'recepcionista');
+    }
+
+    function inviteRef(academiaId, email) {
+      return /databases/$(database)/documents/academias/$(academiaId)/invites/$(email);
+    }
+
+    function claimsNewAcademiaAsAdmin() {
+      return request.resource.data.role == 'admin'
+        && get(/databases/$(database)/documents/academias/$(request.resource.data.academiaId)).data.ownerUid == request.auth.uid;
+    }
+
+    function claimsValidInvite() {
+      let ref = inviteRef(request.resource.data.academiaId, request.auth.token.email.lower());
+      return exists(ref)
+        && get(ref).data.email == request.auth.token.email.lower()
+        && get(ref).data.role == request.resource.data.role;
+    }
+
+    match /users/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      // A user can only create their own profile, and only by either founding a brand
+      // new academia (as its admin) or redeeming a staff invite created by that
+      // academia's admin — never by self-assigning an arbitrary academiaId/role.
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && (claimsNewAcademiaAsAdmin() || claimsValidInvite());
+      allow update: if isSignedIn() && request.auth.uid == uid && request.resource.data.academiaId == resource.data.academiaId;
+      allow delete: if false;
+    }
+
+    match /academias/{academiaId} {
+      allow read: if belongsToAcademia(academiaId);
+      allow create: if isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isAdmin(academiaId);
+      allow delete: if false;
+
+      match /invites/{email} {
+        allow get: if isAdmin(academiaId) || (isSignedIn() && request.auth.token.email.lower() == resource.data.email);
+        allow list: if isAdmin(academiaId);
+        allow create, update: if isAdmin(academiaId);
+        allow delete: if isAdmin(academiaId) || (isSignedIn() && request.auth.token.email.lower() == resource.data.email);
+      }
+
+      match /students/{studentId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isStaff(academiaId);
+      }
+
+      match /teachers/{teacherId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isAdmin(academiaId);
+      }
+
+      match /payments/{paymentId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isStaff(academiaId);
+      }
+
+      match /attendance/{attendanceId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isStaff(academiaId);
+      }
+
+      match /classes/{classId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isAdmin(academiaId);
+      }
+
+      match /finance/{entryId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isAdmin(academiaId);
+      }
+
+      match /notices/{noticeId} {
+        allow read: if isStaff(academiaId);
+        allow write: if isAdmin(academiaId);
+      }
+    }
+  }
+}
