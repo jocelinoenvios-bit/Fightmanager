@@ -1,5 +1,16 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, Dimensions, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-chart-kit';
@@ -194,21 +205,26 @@ function AddFinanceModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={[styles.overlay, { backgroundColor: colors.overlay }]} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: colors.surfaceElevated, borderRadius: radius.lg }]}>
-          <Text style={[styles.sheetTitle, { color: colors.text }]}>Novo lançamento</Text>
-          <View style={styles.typeRow}>
-            <Chip label="Despesa" selected={tipo === 'Despesa'} onPress={() => setTipo('Despesa')} />
-            <Chip label="Receita" selected={tipo === 'Receita'} onPress={() => setTipo('Receita')} />
-          </View>
-          <SelectField label="Categoria" value={categoria} options={categorias} onChange={setCategoria} placeholder="Selecionar categoria" />
-          <Input label="Valor (R$)" value={valor} onChangeText={setValor} keyboardType="numeric" />
-          <Input label="Data" value={data} onChangeText={setData} placeholder="AAAA-MM-DD" />
-          <Input label="Descrição (opcional)" value={descricao} onChangeText={setDescricao} />
-          {!!error && <Text style={{ color: colors.danger, marginBottom: 8 }}>{error}</Text>}
-          <Button label="Salvar lançamento" onPress={handleSave} loading={saving} fullWidth size="lg" />
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Pressable style={[styles.overlay, { backgroundColor: colors.overlay }]} onPress={onClose}>
+          <Pressable style={[styles.sheet, { backgroundColor: colors.surfaceElevated, borderRadius: radius.lg }]}>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>Novo lançamento</Text>
+            <View style={styles.typeRow}>
+              <Chip label="Despesa" selected={tipo === 'Despesa'} onPress={() => setTipo('Despesa')} />
+              <Chip label="Receita" selected={tipo === 'Receita'} onPress={() => setTipo('Receita')} />
+            </View>
+            <SelectField label="Categoria" value={categoria} options={categorias} onChange={setCategoria} placeholder="Selecionar categoria" />
+            <Input label="Valor (R$)" value={valor} onChangeText={setValor} keyboardType="numeric" />
+            <Input label="Data" value={data} onChangeText={setData} placeholder="AAAA-MM-DD" />
+            <Input label="Descrição (opcional)" value={descricao} onChangeText={setDescricao} />
+            {!!error && <Text style={{ color: colors.danger, marginBottom: 8 }}>{error}</Text>}
+            <Button label="Salvar lançamento" onPress={handleSave} loading={saving} fullWidth size="lg" />
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
