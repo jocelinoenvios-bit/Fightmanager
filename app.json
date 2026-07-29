@@ -46,6 +46,11 @@
     "experiments": {
       "typedRoutes": true,
       "baseUrl": "/Fightmanager"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "2a5864aa-1e02-4de9-a8d8-06fd076a0cb4"
+      }
     }
   }
 }
