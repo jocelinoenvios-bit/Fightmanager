@@ -58,6 +58,9 @@ export default function DashboardScreen() {
   const weekday = new Date().getDay();
 
   const alunosAtivos = students.filter((s) => s.status === 'Ativo').length;
+  const previsaoFaturamento = students
+    .filter((s) => s.status === 'Ativo')
+    .reduce((sum, s) => sum + (s.valorMensalidade || 0), 0);
   const inadimplentes = new Set(
     payments.filter((p) => p.status !== 'Pago' && p.vencimento < today).map((p) => p.studentId)
   ).size;
@@ -82,6 +85,7 @@ export default function DashboardScreen() {
 
       <View style={styles.grid}>
         <StatCard label="Alunos ativos" value={String(alunosAtivos)} icon="people" tone="primary" />
+        <StatCard label="Previsão do mês" value={formatCurrency(previsaoFaturamento)} icon="calculator" tone="primary" />
         <StatCard label="Inadimplentes" value={String(inadimplentes)} icon="alert-circle" tone="danger" />
         <StatCard label="Recebido no mês" value={formatCurrency(recebidoMes)} icon="trending-up" tone="success" />
         <StatCard label="Pendente a receber" value={formatCurrency(pendenteReceber)} icon="time" tone="warning" />
