@@ -10,6 +10,7 @@ import { uploadImageAsync } from '@/services/uploadImage';
 import { noticesService } from '@/services/notices';
 import { invitesService } from '@/services/invites';
 import { signOutUser } from '@/services/auth';
+import { confirmAction } from '@/utils/confirm';
 import { Invite, Notice, Role } from '@/types';
 
 const CONVIDAVEIS: Role[] = ['professor', 'recepcionista'];
@@ -152,11 +153,9 @@ export default function ConfiguracoesScreen() {
     setInvites((prev) => prev.filter((i) => i.id !== id));
   };
 
-  const handleLogout = () => {
-    Alert.alert('Sair', 'Deseja sair da sua conta?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => signOutUser() },
-    ]);
+  const handleLogout = async () => {
+    const confirmed = await confirmAction('Sair', 'Deseja sair da sua conta?', 'Sair');
+    if (confirmed) await signOutUser();
   };
 
   return (
