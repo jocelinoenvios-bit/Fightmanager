@@ -7,23 +7,33 @@ import { useTheme } from '@/theme/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge, Button, Card, Chip, EmptyState, FAB, Input, Screen, ScreenHeader, SelectField, StatCard } from '@/components';
 import { financeService } from '@/services/finance';
-import { DESPESA_CATEGORIAS, FinanceEntry, FinanceType } from '@/types';
+import { studentsService } from '@/services/students';
+import { DESPESA_CATEGORIAS, FinanceEntry, FinanceType, Student } from '@/types';
 import { formatCurrency, todayIso } from '@/utils/format';
 
 const RECEITA_CATEGORIAS = ['Mensalidades', 'Matrículas', 'Produtos', 'Eventos', 'Outros'];
+
+// Categorias de despesa que se repetem todo mês independente do faturamento
+// (aluguel, contas, folha), usadas para prever o custo fixo do mês seguinte.
+const CATEGORIAS_CUSTO_FIXO = ['Aluguel', 'Energia', 'Água', 'Internet', 'Salários'];
 
 export default function FinanceiroScreen() {
   const { colors } = useTheme();
   const { academiaId } = useAuth();
   const [entries, setEntries] = useState<FinanceEntry[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [filter, setFilter] = useState<FinanceType | 'Todos'>('Todos');
   const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!academiaId) return;
-    const list = await financeService(academiaId).list();
+    const [list, studentList] = await Promise.all([
+      financeService(academiaId).list(),
+      studentsService(academiaId).list(),
+    ]);
     setEntries(list.sort((a, b) => b.data.localeCompare(a.data)));
+    setStudents(studentList);
     setLoading(false);
   }, [academiaId]);
 
@@ -45,6 +55,13 @@ export default function FinanceiroScreen() {
   const filtered = filter === 'Todos' ? entries : entries.filter((e) => e.tipo === filter);
 
   const chart = useMemo(() => buildLast6MonthsProfit(entries), [entries]);
+
+  const receitaPrevistaProximoMes = useMemo(
+    () => students.filter((s) => s.status === 'Ativo').reduce((sum, s) => sum + (s.valorMensalidade || 0), 0),
+    [students]
+  );
+  const custosFixosPrevistos = useMemo(() => averageFixedCosts(entries), [entries]);
+  const liquidoPrevistoProximoMes = receitaPrevistaProximoMes - custosFixosPrevistos;
 
   const handleDelete = (entry: FinanceEntry) => {
     Alert.alert('Excluir lançamento', 'Deseja excluir este lançamento?', [
@@ -70,6 +87,13 @@ export default function FinanceiroScreen() {
         <StatCard label="Receitas do ano" value={formatCurrency(receitasAno)} icon="arrow-up-circle" tone="primary" />
         <StatCard label="Despesas do ano" value={formatCurrency(despesasAno)} icon="arrow-down-circle" tone="warning" />
         <StatCard label="Fluxo (ano)" value={formatCurrency(receitasAno - despesasAno)} icon="analytics" tone="primary" />
+        <StatCard
+          label="Previsão líquida (mês seguinte)"
+          value={formatCurrency(liquidoPrevistoProximoMes)}
+          icon="calendar-outline"
+          tone={liquidoPrevistoProximoMes >= 0 ? 'success' : 'danger'}
+          hint={`Receita prevista ${formatCurrency(receitaPrevistaProximoMes)} · Custos fixos ${formatCurrency(custosFixosPrevistos)}`}
+        />
       </View>
 
       <Card style={{ alignItems: 'center', marginBottom: 16 }}>
@@ -229,6 +253,29 @@ function buildLast6MonthsProfit(entries: FinanceEntry[]) {
     return receitas - despesas;
   });
   return { labels: months.map((m) => m.label), values };
+}
+
+// Média das despesas fixas (aluguel, contas, salários...) dos últimos meses com
+// lançamento, usada como estimativa desses custos para o mês seguinte. Sem
+// histórico, usa o mês corrente como aproximação.
+function averageFixedCosts(entries: FinanceEntry[], monthsBack = 3): number {
+  const now = new Date();
+  const monthTotals: number[] = [];
+  for (let i = 1; i <= monthsBack; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const total = entries
+      .filter((e) => e.tipo === 'Despesa' && CATEGORIAS_CUSTO_FIXO.includes(e.categoria) && e.data.startsWith(key))
+      .reduce((s, e) => s + e.valor, 0);
+    if (total > 0) monthTotals.push(total);
+  }
+  if (monthTotals.length > 0) {
+    return monthTotals.reduce((s, v) => s + v, 0) / monthTotals.length;
+  }
+  const currentMonth = todayIso().slice(0, 7);
+  return entries
+    .filter((e) => e.tipo === 'Despesa' && CATEGORIAS_CUSTO_FIXO.includes(e.categoria) && e.data.startsWith(currentMonth))
+    .reduce((s, e) => s + e.valor, 0);
 }
 
 const styles = StyleSheet.create({
