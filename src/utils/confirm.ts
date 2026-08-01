@@ -14,3 +14,13 @@ export function confirmAction(title: string, message: string, confirmLabel = 'Co
     ]);
   });
 }
+
+// react-native-web's Alert.alert() is a total no-op (it doesn't even fall back to
+// window.alert), so a plain notification message would otherwise disappear silently on web.
+export function notifyMessage(title: string, message: string) {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+    return;
+  }
+  Alert.alert(title, message);
+}

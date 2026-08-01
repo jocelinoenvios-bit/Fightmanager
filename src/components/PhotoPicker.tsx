@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeContext';
+import { notifyMessage } from '@/utils/confirm';
 import { Avatar } from './Avatar';
 
 export function PhotoPicker({
@@ -39,7 +40,7 @@ export function PhotoPicker({
       await onPick(localUri);
     } catch (error) {
       setPreviewUri(uri);
-      Alert.alert('Falha ao enviar foto', 'Não foi possível carregar a imagem. Verifique sua conexão e tente novamente.');
+      notifyMessage('Falha ao enviar foto', 'Não foi possível carregar a imagem. Verifique sua conexão e tente novamente.');
     } finally {
       setBusy(false);
     }
