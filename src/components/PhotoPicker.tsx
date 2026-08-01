@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/theme/ThemeContext';
+import { notifyMessage } from '@/utils/confirm';
 import { Avatar } from './Avatar';
 
 export function PhotoPicker({
@@ -16,6 +17,13 @@ export function PhotoPicker({
 }) {
   const { colors } = useTheme();
   const [busy, setBusy] = useState(false);
+  // Shows the freshly picked photo right away instead of waiting for the
+  // upload to finish, and falls back to the last saved photo if the upload fails.
+  const [previewUri, setPreviewUri] = useState(uri);
+
+  useEffect(() => {
+    setPreviewUri(uri);
+  }, [uri]);
 
   const pick = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -25,9 +33,14 @@ export function PhotoPicker({
       quality: 0.7,
     });
     if (result.canceled || !result.assets?.[0]) return;
+    const localUri = result.assets[0].uri;
+    setPreviewUri(localUri);
     setBusy(true);
     try {
-      await onPick(result.assets[0].uri);
+      await onPick(localUri);
+    } catch (error) {
+      setPreviewUri(uri);
+      notifyMessage('Falha ao enviar foto', 'Não foi possível carregar a imagem. Verifique sua conexão e tente novamente.');
     } finally {
       setBusy(false);
     }
@@ -35,7 +48,7 @@ export function PhotoPicker({
 
   return (
     <Pressable onPress={pick} style={styles.wrapper}>
-      <Avatar uri={uri} name={name} size={88} />
+      <Avatar uri={previewUri} name={name} size={88} />
       <View style={[styles.badge, { backgroundColor: colors.primary, borderColor: colors.background }]}>
         {busy ? (
           <ActivityIndicator size="small" color={colors.onPrimary} />

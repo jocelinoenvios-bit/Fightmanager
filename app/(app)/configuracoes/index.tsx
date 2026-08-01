@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '@/theme/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,6 +10,7 @@ import { uploadImageAsync } from '@/services/uploadImage';
 import { noticesService } from '@/services/notices';
 import { invitesService } from '@/services/invites';
 import { signOutUser } from '@/services/auth';
+import { confirmAction, notifyMessage } from '@/utils/confirm';
 import { Invite, Notice, Role } from '@/types';
 
 const CONVIDAVEIS: Role[] = ['professor', 'recepcionista'];
@@ -94,7 +95,9 @@ export default function ConfiguracoesScreen() {
         bancoConta,
         horarioFuncionamento,
       });
-      Alert.alert('Sucesso', 'Configurações salvas.');
+      notifyMessage('Sucesso', 'Configurações salvas.');
+    } catch (error) {
+      notifyMessage('Erro ao salvar', 'Não foi possível salvar as configurações. Tente novamente.');
     } finally {
       setSaving(false);
     }
@@ -152,11 +155,9 @@ export default function ConfiguracoesScreen() {
     setInvites((prev) => prev.filter((i) => i.id !== id));
   };
 
-  const handleLogout = () => {
-    Alert.alert('Sair', 'Deseja sair da sua conta?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: () => signOutUser() },
-    ]);
+  const handleLogout = async () => {
+    const confirmed = await confirmAction('Sair', 'Deseja sair da sua conta?', 'Sair');
+    if (confirmed) await signOutUser();
   };
 
   return (
